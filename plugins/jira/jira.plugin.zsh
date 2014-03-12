@@ -28,8 +28,12 @@ open_jira_issue () {
     echo "JIRA url is not specified anywhere."
     return 0
   fi
-
-  if [ -z "$1" ]; then
+  if [[ $1 == "-l" ]]; then
+    echo "Retrieving Assigned Projects"
+    IN=$(curl -s -u $JIRA_USER:$JIRA_PASS $jira_url/rest/api/2/search\?jql\=assignee\=$JIRA_USER | json -e 'this.keys = []; for(var i = 0; i< issues.length; i++){keys.push(issues[i].key);}' keys -C)
+    keys=${IN//,/ }
+    echo $keys
+  elif [ -z "$1" ]; then
     echo "Opening new issue"
     $open_cmd "$jira_url/secure/CreateIssue!default.jspa"
   else
