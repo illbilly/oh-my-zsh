@@ -10,6 +10,7 @@
 #        echo "https://name.jira.com" >> .jira-url
 # Usage: jira           # opens a new issue
 #        jira ABC-123   # Opens an existing issue
+
 open_jira_issue () {
   local open_cmd
   if [[ $(uname -s) == 'Darwin' ]]; then
@@ -105,6 +106,8 @@ open_jira_issue () {
         echo "comment posted to $2: $comment"
       fi
     fi
+  elif [[ $1 == "-h" ]]; then
+    usage 
   elif [ -z "$1" ]; then
     echo "Opening new issue"
     $open_cmd "$jira_url/secure/CreateIssue!default.jspa"
@@ -122,6 +125,21 @@ open_jira_issue () {
   textreset=$(tput sgr0) # reset the foreground colour
   red=$(tput setaf 1)
   yellow=$(tput setaf 2)
+
+usage()
+{
+echo "
+${red}jira${textreset}                           Opens a new issue
+${red}jira ABC-123${textreset}                   Opens issue with key ABC-123
+${red}jira -c ABC-123${textreset}                Displays comments on issue ABC-123
+${red}jira -c ABC-123 'a comment'${textreset}    Writes comment to ABC-123
+${red}jira -l${textreset}                        List Issues. Optional Filtering: 
+                               -a: assigned to me
+                               -A john: assigned to john
+                               -S open: status is open
+                               -P ABC: project is ABC"
+
+}
 
 output_errors(){
   echo "${red}ERROR(s):\t${textreset}$1"
