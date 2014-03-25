@@ -1,5 +1,5 @@
-# To use: add a .jira-url file in the base of your project
-#         You can also set JIRA_URL in your .zshrc or put .jira-url in your home directory
+# To use: add a .jira-url, jira_user & jira_pass file in the base of your project
+#         You can also set JIRA_URL, JIRA_USER & JIRA_PASS in your .zshrc or put .jira-url in your home directory
 #         .jira-url in the current directory takes precedence
 #
 # If you use Rapid Board, set:
@@ -8,10 +8,23 @@
 #
 # Setup: cd to/my/project
 #        echo "https://name.jira.com" >> .jira-url
-# Usage: jira           # opens a new issue
-#        jira ABC-123   # Opens an existing issue
+#        echo "john" >> .jira-user
+#        echo "pass" >> .jira-pass
+#
+# Usage: 
+# jira                           Opens a new issue
+# jira ABC-123                   Opens issue with key ABC-123
+# jira -c ABC-123                Displays comments on issue ABC-123
+# jira -c ABC-123 'a comment'    Writes comment to ABC-123
+# jira -l                        List Issues. Optional Filtering: 
+#                                -a: assigned to me
+#                                -A john: assigned to john
+#                                -S open: status is open
+#                                -P ABC: project is ABC"
 
 open_jira_issue () {
+  
+  #set cmd to open browser
   local open_cmd
   if [[ $(uname -s) == 'Darwin' ]]; then
     open_cmd='open'
@@ -19,6 +32,8 @@ open_jira_issue () {
     open_cmd='xdg-open'
   fi
 
+
+  #Env vars for jira config
   if [ -f .jira-url ]; then
     jira_url=$(cat .jira-url)
   elif [ -f ~/.jira-url ]; then
@@ -29,6 +44,35 @@ open_jira_issue () {
     echo "JIRA url is not specified anywhere."
     return 0
   fi
+
+  if [ -f .jira-user ]; then
+    jira_user=$(cat .jira-user)
+  elif [ -f ~/.jira-user ]; then
+    jira_user=$(cat ~/.jira-user)
+  elif [[ "x$JIRA_USER" != "x" ]]; then
+    jira_user=$JIRA_USER
+  else
+    echo "JIRA User is not specified anywhere."
+    return 0
+  fi
+
+  if [ -f .jira-pass ]; then
+    jira_pass=$(cat .jira-pass)
+  elif [ -f ~/.jira-pass ]; then
+    jira_pass=$(cat ~/.jira-pass)
+  elif [[ "x$JIRA_PASS" != "x" ]]; then
+    jira_pass=$JIRA_PASS
+  else
+    echo "JIRA Pass is not specified anywhere."
+    return 0
+  fi
+
+  #API Constants
+  local auth=$JIRA_USER:$JIRA_PASS
+  local api_endpoint=$jira_url/rest/api/2
+
+
+  #statement loop
     if [[ $1 == "-l" ]]; then
       echo "Retrieving Issues..." >&2
       while getopts "laA:S:P:" opt; do
@@ -75,7 +119,7 @@ open_jira_issue () {
         fi
       fi
       jql+=+order+by+duedate+asc
-      response=$(curl -s -u $JIRA_USER:$JIRA_PASS $jira_url/rest/api/2/search\?$jql)
+      response=$(curl -s -u $auth $api_endpoint/search\?$jql)
       errors=$(underscore --data "$response" select .errorMessages --outfmt text 2>/dev/null)
       issues=$(underscore --data "$response" extract 'issues' 2>/dev/null)
       
@@ -90,7 +134,7 @@ open_jira_issue () {
     else
       if [ -z "$3" ]; then
         echo "Retrieving comments"
-        response=$(curl -s -u $JIRA_USER:$JIRA_PASS $jira_url/rest/api/2/issue/$2/comment)
+        response=$(curl -s -u $auth $api_endpoint/issue/$2/comment)
         errors=$(underscore --data "$response" select .errorMessages --outfmt text 2>/dev/null)
         comments=$(underscore --data "$response" extract 'comments' 2>/dev/null)
       
@@ -99,10 +143,10 @@ open_jira_issue () {
         else
           output_comments $comments
         fi
-        # response=$(curl -s -u $JIRA_USER:$JIRA_PASS $jira_url/rest/api/2/issue/$2/comment?jql=maxResults=5 | underscore extract 'comments')
+        # response=$(curl -s -u $auth $api_endpoint/issue/$2/comment?jql=maxResults=5 | underscore extract 'comments')
         # output_comments $response
       else
-        comment=$(curl -s -u $JIRA_USER:$JIRA_PASS -X POST --data '{"body": "'$3'"}' -H "Content-Type: application/json" $jira_url/rest/api/2/issue/$2/comment | underscore select .body --outfmt text)
+        comment=$(curl -s -u $auth -X POST --data '{"body": "'$3'"}' -H "Content-Type: application/json" $api_endpoint/issue/$2/comment | underscore select .body --outfmt text)
         echo "comment posted to $2: $comment"
       fi
     fi
