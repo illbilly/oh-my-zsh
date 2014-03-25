@@ -11,6 +11,10 @@
 #        echo "john" >> .jira-user
 #        echo "pass" >> .jira-pass
 #
+# Dependencies:
+#   Node.js: http://nodejs.org/ | brew npm
+#   underscore cli: https://github.com/ddopson/underscore-cli | npm install -g underscore-cli
+#
 # Usage: 
 # jira                           Opens a new issue
 # jira ABC-123                   Opens issue with key ABC-123
@@ -24,6 +28,7 @@
 # jira -s                        Excute JQL to search for issues
 # jira -f                        List favorite filters
 # jira -f 10001                  Executes favorite filter. Takes filter Id
+# jira -stat                     Retrieve list of avalible statuses
 
 open_jira_issue () {
   
@@ -35,6 +40,17 @@ open_jira_issue () {
     open_cmd='xdg-open'
   fi
 
+  if
+
+  #check for dependancies
+  node=$(program_is_installed node)
+  underscore=$(program_is_installed underscore)
+  if [[ $node = 0 || $underscore = 0 ]]; then
+    echo "Missing Dependencies:"
+    echo "Nodejs: $node"
+    echo "underscore-cli: $underscore"
+    return 0
+  fi
 
   #Env vars for jira config
   if [ -f .jira-url ]; then
@@ -169,6 +185,11 @@ open_jira_issue () {
         search $jql
       fi
     ;;
+    -stat)
+      echo "Retrieving Status"
+      response=$(curl -s -u $auth $api_endpoint/status)
+      output_status $response
+    ;;
     -h)
       usage
     ;;
@@ -206,7 +227,8 @@ ${red}jira -l${textreset}                        :List Issues. Optional Filterin
   ${yellow}-P ABC${textreset}  : project is ABC
 ${red}jira -s${textreset}                         :Excute JQL to search for issues
 ${red}jira -f${textreset}                         :List favorite filters
-${red}jira -f 10001${textreset}                   :Executes favorite filter. Takes filter Id"
+${red}jira -f 10001${textreset}                   :Executes favorite filter. Takes filter Id
+${red}jira -stat${textreset}                      :Retrieve list of avalible statuses"
 
 }
 
@@ -301,6 +323,47 @@ output_filters(){
     do
       echo "${yellow}${nameArr[i+1]}\t${textreset}${idArr[i+1]}" | column -s $'\t';
     done
+}
+
+output_status(){
+  stats=$(underscore --data "$1" pluck name --outfmt text)
+
+    statsArr=()
+    while read -r line; do
+      statsArr+=("$line")
+    done <<< "$stats"
+
+    for ((i=0;i<${#statsArr[@]};i++));
+    do
+      echo "${yellow}${statsArr[i+1]}" | column -s $'\t';
+    done
+}
+
+#functions to check for node dependancies
+#taken from: https://gist.github.com/JamieMason/4761049
+
+# return 1 if global command line program installed, else 0
+# example
+# echo "node: $(program_is_installed node)"
+function program_is_installed {
+  # set to 1 initially
+  local return_=1
+  # set to 0 if not found
+  type $1 >/dev/null 2>&1 || { local return_=0; }
+  # return value
+  echo "$return_"
+}
+
+# return 1 if local npm package is installed at ./node_modules, else 0
+# example
+# echo "gruntacular : $(npm_package_is_installed gruntacular)"
+function npm_package_is_installed {
+  # set to 1 initially
+  local return_=1
+  # set to 0 if not found
+  ls node_modules | grep $1 >/dev/null 2>&1 || { local return_=0; }
+  # return value
+  echo "$return_"
 }
 
 alias jira='open_jira_issue'
