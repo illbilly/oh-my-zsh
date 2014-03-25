@@ -3,7 +3,7 @@
 #         .jira-url in the current directory takes precedence
 #
 # If you use Rapid Board, set:
-#JIRA_RAPID_BOARD="true"
+# JIRA_RAPID_BOARD="true"
 # in you .zshrc
 #
 # Setup: cd to/my/project
@@ -71,9 +71,9 @@ open_jira_issue () {
   local auth=$JIRA_USER:$JIRA_PASS
   local api_endpoint=$jira_url/rest/api/2
 
-
-  #statement loop
-    if [[ $1 == "-l" ]]; then
+  #Command Switch
+  case $1 in
+    -l)
       echo "Retrieving Issues..." >&2
       while getopts "laA:S:P:" opt; do
         case $opt in
@@ -128,7 +128,8 @@ open_jira_issue () {
       else
         output_issues $issues
       fi
-  elif [[ $1 == "-c" ]]; then
+      ;;
+  -c)
     if [ -z "$2" ]; then
       echo "Please specify an issue for commenting"
     else
@@ -150,19 +151,23 @@ open_jira_issue () {
         echo "comment posted to $2: $comment"
       fi
     fi
-  elif [[ $1 == "-h" ]]; then
-    usage 
-  elif [ -z "$1" ]; then
+    ;;
+  -h)
+    usage
+  ;;
+  "")
     echo "Opening new issue"
     $open_cmd "$jira_url/secure/CreateIssue!default.jspa"
-  else
+  ;;
+  *)
     echo "Opening issue #$1"
     if [[ "x$JIRA_RAPID_BOARD" = "xtrue" ]]; then
       $open_cmd  "$jira_url/issues/$1"
     else
       $open_cmd  "$jira_url/browse/$1"
     fi
-  fi
+  ;;
+ esac
 }
 
   #global colors for output
