@@ -21,6 +21,9 @@
 #                                -A john: assigned to john
 #                                -S open: status is open
 #                                -P ABC: project is ABC"
+# jira -s                        Excute JQL to search for issues
+# jira -f                        List favorite filters
+# jira -f 10001                  Executes favorite filter. Takes filter Id
 
 open_jira_issue () {
   
@@ -107,7 +110,7 @@ open_jira_issue () {
         if [[ $t == "=" ]]; then
           jql+="status=$state"
         else
-          jql+="+AND+status=$state"
+          jql+="+AND+status=\"$state\""
         fi
       fi
       if [[ ! -z "$project" ]]; then
@@ -128,45 +131,59 @@ open_jira_issue () {
       else
         output_issues $issues
       fi
-      ;;
-  -c)
-    if [ -z "$2" ]; then
-      echo "Please specify an issue for commenting"
-    else
-      if [ -z "$3" ]; then
-        echo "Retrieving comments"
-        response=$(curl -s -u $auth $api_endpoint/issue/$2/comment)
-        errors=$(underscore --data "$response" select .errorMessages --outfmt text 2>/dev/null)
-        comments=$(underscore --data "$response" extract 'comments' 2>/dev/null)
-      
-        if [[ ! -z "$errors" ]]; then
-          output_errors $errors
-        else
-          output_comments $comments
-        fi
-        # response=$(curl -s -u $auth $api_endpoint/issue/$2/comment?jql=maxResults=5 | underscore extract 'comments')
-        # output_comments $response
-      else
-        comment=$(curl -s -u $auth -X POST --data '{"body": "'$3'"}' -H "Content-Type: application/json" $api_endpoint/issue/$2/comment | underscore select .body --outfmt text)
-        echo "comment posted to $2: $comment"
-      fi
-    fi
     ;;
-  -h)
-    usage
-  ;;
-  "")
-    echo "Opening new issue"
-    $open_cmd "$jira_url/secure/CreateIssue!default.jspa"
-  ;;
-  *)
-    echo "Opening issue #$1"
-    if [[ "x$JIRA_RAPID_BOARD" = "xtrue" ]]; then
-      $open_cmd  "$jira_url/issues/$1"
-    else
-      $open_cmd  "$jira_url/browse/$1"
-    fi
-  ;;
+    -s)
+      search $2
+    ;;
+    -c)
+      if [ -z "$2" ]; then
+        echo "Please specify an issue for commenting"
+      else
+        if [ -z "$3" ]; then
+          echo "Retrieving comments"
+          response=$(curl -s -u $auth $api_endpoint/issue/$2/comment)
+          errors=$(underscore --data "$response" select .errorMessages --outfmt text 2>/dev/null)
+          comments=$(underscore --data "$response" extract 'comments' 2>/dev/null)
+        
+          if [[ ! -z "$errors" ]]; then
+            output_errors $errors
+          else
+            output_comments $comments
+          fi
+          # response=$(curl -s -u $auth $api_endpoint/issue/$2/comment?jql=maxResults=5 | underscore extract 'comments')
+          # output_comments $response
+        else
+          comment=$(curl -s -u $auth -X POST --data '{"body": "'$3'"}' -H "Content-Type: application/json" $api_endpoint/issue/$2/comment | underscore select .body --outfmt text)
+          echo "comment posted to $2: $comment"
+        fi
+      fi
+    ;;
+    -f)
+      if [ -z "$2" ]; then
+        echo "Retrieving filters"
+        filters=$(curl -s -u $auth $api_endpoint/filter/favourite)
+        output_filters $filters
+      else
+        response=$(curl -s -u $auth $api_endpoint/filter/$2)
+        jql=$(underscore --data "$response" select ".jql" --outfmt text)
+        search $jql
+      fi
+    ;;
+    -h)
+      usage
+    ;;
+    "")
+      echo "Opening new issue"
+      $open_cmd "$jira_url/secure/CreateIssue!default.jspa"
+    ;;
+    *)
+      echo "Opening issue #$1"
+      if [[ "x$JIRA_RAPID_BOARD" = "xtrue" ]]; then
+        $open_cmd  "$jira_url/issues/$1"
+      else
+        $open_cmd  "$jira_url/browse/$1"
+      fi
+    ;;
  esac
 }
 
@@ -178,16 +195,37 @@ open_jira_issue () {
 usage()
 {
 echo "
-${red}jira${textreset}                           Opens a new issue
-${red}jira ABC-123${textreset}                   Opens issue with key ABC-123
-${red}jira -c ABC-123${textreset}                Displays comments on issue ABC-123
-${red}jira -c ABC-123 'a comment'${textreset}    Writes comment to ABC-123
-${red}jira -l${textreset}                        List Issues. Optional Filtering: 
-                               -a: assigned to me
-                               -A john: assigned to john
-                               -S open: status is open
-                               -P ABC: project is ABC"
+${red}jira${textreset}                           :Opens a new issue
+${red}jira ABC-123${textreset}                   :Opens issue with key ABC-123
+${red}jira -c ABC-123${textreset}                :Displays comments on issue ABC-123
+${red}jira -c ABC-123 'a comment'${textreset}    :Writes comment to ABC-123
+${red}jira -l${textreset}                        :List Issues. Optional Filtering: 
+  ${yellow}-a${textreset}      : assigned to me
+  ${yellow}-A john${textreset} : assigned to john
+  ${yellow}-S open${textreset} : status is open
+  ${yellow}-P ABC${textreset}  : project is ABC
+${red}jira -s${textreset}                         :Excute JQL to search for issues
+${red}jira -f${textreset}                         :List favorite filters
+${red}jira -f 10001${textreset}                   :Executes favorite filter. Takes filter Id"
 
+}
+
+search(){
+  if [ -z "$1" ]; then
+    echo "Please specify JQL to execute"
+  else
+    jql=jql\=
+    jql+="$(perl -MURI::Escape -e 'print uri_escape($ARGV[0]);' "$1")"
+    response=$(curl -s -u $auth $api_endpoint/search\?$jql)
+    errors=$(underscore --data "$response" select .errorMessages --outfmt text 2>/dev/null)
+    issues=$(underscore --data "$response" extract 'issues' 2>/dev/null)
+    
+    if [[ ! -z "$errors" ]]; then
+      output_errors $errors
+    else
+      output_issues $issues
+    fi
+  fi
 }
 
 output_errors(){
@@ -223,7 +261,6 @@ output_issues(){
 }
 
 output_comments(){
-    echo $1 > test.tmp
     bodies=$(underscore --data "$1" pluck body | underscore map 'value.replace(/\r?\n|\r/g,"")' --outfmt text 2>/dev/null)
     
     bodyArr=()
@@ -242,6 +279,27 @@ output_comments(){
     do
       echo "${yellow}----${red}${authorArr[i+1]}${yellow}----${textreset}"
       echo "${bodyArr[i+1]}" #| column -s $'\t';
+    done
+}
+
+output_filters(){
+    names=$(underscore --data "$1" pluck name --outfmt text)
+    
+    nameArr=()
+    while read -r line; do
+      nameArr+=("$line")
+    done <<< "$names"
+    
+    ids=$(underscore --data "$1" pluck id --outfmt text)
+    
+    idArr=()
+    while read -r line; do
+      idArr+=("$line")
+    done <<< "$ids"
+
+    for ((i=0;i<${#nameArr[@]};i++));
+    do
+      echo "${yellow}${nameArr[i+1]}\t${textreset}${idArr[i+1]}" | column -s $'\t';
     done
 }
 
