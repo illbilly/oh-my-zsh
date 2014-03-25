@@ -83,25 +83,6 @@ open_jira_issue () {
       else
         output_issues $issues
       fi
-
-  elif [[ $1 == "-la" ]]; then
-    if [ -z "$2" ]; then
-      assignee=$JIRA_USER
-    else
-      assignee=$2
-    fi
-    echo "Retrieving Issues assigned to $assignee"
-    response=$(curl -s -u $JIRA_USER:$JIRA_PASS $jira_url/rest/api/2/search\?jql\=assignee\=$assignee+order+by+duedate+asc | underscore extract 'issues') # > response.tmp
-    output_issues $response
-
-  elif [[ $1 == "-lp" ]]; then
-    if [ -z "$2" ]; then
-      echo "Please specify a project key"
-    else
-      echo "Retrieving Issues from project $2"
-      response=$(curl -s -u $JIRA_USER:$JIRA_PASS $jira_url/rest/api/2/search\?jql\=project\=$2+order+by+duedate+asc | underscore extract 'issues')
-      output_issues $response
-    fi
   elif [[ $1 == "-c" ]]; then
     if [ -z "$2" ]; then
       echo "Please specify an issue for commenting"
